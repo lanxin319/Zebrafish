@@ -2,6 +2,7 @@ import tensortools as tt
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import umap
 from scipy.cluster.hierarchy import dendrogram, linkage, leaves_list
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import davies_bouldin_score, silhouette_score
@@ -9,29 +10,26 @@ from sklearn.metrics import davies_bouldin_score, silhouette_score
 
 def align_to_y_axis(data):
     """
-    Align the first node with respect to the 14th node to the Y-axis.
-    This involves calculating the angle between these two nodes and
-    rotating all nodes by this angle so that the line connecting
-    the first and the 14th node aligns with the Y-axis.
+    Align the first node with respect to the 14th node to the Y-axis for all time points.
 
     Parameters:
-    - data (numpy.ndarray): The input data with shape (41390, 3, 82, 19),
-                            where 3 represents X, Y, and confidence interval.
-
+    - data (numpy.ndarray): The input data with shape (41390, 3, 82, 19).
+    
     Returns:
     - numpy.ndarray: The aligned data with the same shape as input.
     """
 
-    # 获取第1个和第14个点的X, Y坐标
-    x_1 = data[:, 0, :, 0]
-    y_1 = data[:, 1, :, 0]
-    x_14 = data[:, 0, :, 13]
-    y_14 = data[:, 1, :, 13]
+    # 获取第1个和第14个点的X, Y坐标在第一个时间点上
+    x_1 = data[:, 0, 0, 0]
+    y_1 = data[:, 1, 0, 0]
+    x_14 = data[:, 0, 0, 13]
+    y_14 = data[:, 1, 0, 13]
 
     # 计算两点之间的角度
-    angle = np.arctan2(y_14 - y_1, x_14 - x_1)
+    angle_to_y_axis = np.pi/2
+    angle = angle_to_y_axis - np.arctan2(y_14 - y_1, x_14 - x_1)
 
-    # 旋转所有的点，让鱼朝着北方
+    # 为所有的点计算旋转后的坐标
     x_coords = data[:, 0, :, :]
     y_coords = data[:, 1, :, :]
 
@@ -47,14 +45,15 @@ def align_to_y_axis(data):
 
 def compute_relative_angles(data):
     """
-        Compute the angles of each point relative to the 14th point.
+    Compute the angles of each point relative to the 14th point.
 
-        Parameters:
-        - data (numpy.ndarray): The input 4-D data array.
+    Parameters:
+    - data (numpy.ndarray): The input 4-D data array.
 
-        Returns:
-        - numpy.ndarray: The output 4-D array with the originnal x, y changed to the angles of each point relative to the 14th point.
+    Returns:
+    - numpy.ndarray: The output 4-D array with the originnal x, y changed to the angles of each point relative to the 14th point.
     """
+
     # 获取X, Y坐标
     x_coords = data[:, 0, :, :]
     y_coords = data[:, 1, :, :]
@@ -84,9 +83,10 @@ def tensor_decomposition(data, rank):
     Returns:
         factors (numpy.array): The decomposed factors array.
     """
+
     # Fit an ensemble of models, 4 random replicates / optimization runs per model rank
-    ensemble = tt.Ensemble(fit_method="ncp_hals")
-    # 修改了ranks=range(1, rank+1)这个范围，对数据张量分别使用秩1到秩(rank+1)进行张量分解
+    ensemble = tt.Ensemble(fit_method="cp_als")
+    # 修改了ranks=range(1, rank+1)这个范围，对数据张量分别使用秩1到秩(rank)进行张量分解
     ensemble.fit(data, ranks=range(1, rank+1), replicates=4)
 
     fig, axes = plt.subplots(1, 2)
@@ -153,7 +153,7 @@ if __name__ == '__main__':
 
     fishdata = np.load('/Users/lanxinxu/Desktop/INTERN_2023/PoseR/ZebTensor/bouts.npy')
     fishdata = np.squeeze(fishdata, axis=-1)  # 移除尺寸为1的维度，因为只有一条鱼，不需要这个维度
-    fishdata_1000 = fishdata[:1000]  # 原始数据太大了，取一部分bouts来看效果
+    fishdata_1000 = fishdata[:2000]  # 原始数据太大了，取一部分bouts来看效果
 
     # 计算每个节点相对于第14个节点的角度
     fishdata_angles = compute_relative_angles(fishdata_1000)
@@ -168,6 +168,20 @@ if __name__ == '__main__':
 
     # hierarchical agglomerative clustering 聚类并画出树状图和热力图
     n_clusters = 30  # 希望聚出多少类
-    labels = hierarchical_agglomerative_clustering(swim_bout_factor, n_clusters)
+    labels = hierarchical_agglomerative_clustering(swim_bout_factor, n_clusters)  # 获得聚类标签并画图
+
+    # UMAP 降维
+    reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, metric='euclidean', n_components=3)
+    embedding = reducer.fit_transform(swim_bout_factor)
+
+    # 可视化
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')  # 创建3D子图
+
+    scatter = ax.scatter(embedding[:, 0], embedding[:, 1], embedding[:, 2], c=labels, cmap='Spectral')
+    ax.set_title('3D UMAP projection of the N x TC matrix')
+    fig.colorbar(scatter)
+
+    plt.show()
 
 
