@@ -97,7 +97,7 @@ def tensor_decomposition(data, rank):
     # 里面可以取出来三个矩阵，分别是 swim_bout_factor, time_factor 和 node_factor
     factors = ensemble.factors(rank)[0]
 
-    np.save('tensor_decomposition_factors.npy', factors)
+    np.save('tensor_decomposition_factors.npy', factors)  # 存下来这个文件
 
     plt.show()
 
@@ -139,7 +139,8 @@ def hierarchical_agglomerative_clustering(swim_bout_factor, n_clusters):
     ax1 = fig.add_subplot(gs[1])
     sns.heatmap(sorted_data, cmap='viridis', yticklabels=False, cbar_kws={'label': 'Weight'}, ax=ax1)
     ax1.set_xlabel('Component')
-    ax1.set_ylabel('Swim bout number')
+    ax1.set_ylabel('Swim bout number', labelpad=10)
+    ax1.yaxis.set_label_position("right")  # 将ylabel移到图的右侧
     ax1.set_title('Hierarchical clustering of swim bouts')
 
     plt.show()
