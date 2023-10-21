@@ -14,7 +14,7 @@ def align_to_y_axis(data):
 
     Parameters:
     - data (numpy.ndarray): The input data with shape (41390, 3, 82, 19).
-    
+
     Returns:
     - numpy.ndarray: The aligned data with the same shape as input.
     """
