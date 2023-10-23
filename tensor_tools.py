@@ -10,10 +10,12 @@ from sklearn.metrics import davies_bouldin_score, silhouette_score
 
 def align_to_y_axis(data):
     """
-    Align the first node with respect to the 14th node to the Y-axis for all time points.
+    Align the first node with respect to the 14th node to the Y-axis for all-time points to ensure the
+    fish is facing North.
 
     Parameters:
-    - data (numpy.ndarray): The input data with shape (41390, 3, 82, 19).
+    - data (numpy.ndarray): The input data with shape (N * C * T * V) (e.g. 41390 bouts, 3 channels,
+    82 frames, 19 nodes).
 
     Returns:
     - numpy.ndarray: The aligned data with the same shape as input.
@@ -30,11 +32,11 @@ def align_to_y_axis(data):
     angle = angle_to_y_axis - np.arctan2(y_14 - y_1, x_14 - x_1)
 
     # 为所有的点计算旋转后的坐标
-    x_coords = data[:, 0, :, :]
-    y_coords = data[:, 1, :, :]
+    x = data[:, 0, :, :]
+    y = data[:, 1, :, :]
 
-    rotated_x = x_coords * np.cos(angle)[:, np.newaxis, np.newaxis] - y_coords * np.sin(angle)[:, np.newaxis, np.newaxis]
-    rotated_y = x_coords * np.sin(angle)[:, np.newaxis, np.newaxis] + y_coords * np.cos(angle)[:, np.newaxis, np.newaxis]
+    rotated_x = x * np.cos(angle)[:, np.newaxis, np.newaxis] - y * np.sin(angle)[:, np.newaxis, np.newaxis]
+    rotated_y = x * np.sin(angle)[:, np.newaxis, np.newaxis] + y * np.cos(angle)[:, np.newaxis, np.newaxis]
 
     rotated_data = data.copy()
     rotated_data[:, 0, :, :] = rotated_x
@@ -51,7 +53,8 @@ def compute_relative_angles(data):
     - data (numpy.ndarray): The input 4-D data array.
 
     Returns:
-    - numpy.ndarray: The output 4-D array with the originnal x, y changed to the angles of each point relative to the 14th point.
+    - numpy.ndarray: The output 4-D array with the original x, y changed to the angles of each point relative to the
+    14th point.
     """
 
     # 获取X, Y坐标
@@ -79,6 +82,7 @@ def tensor_decomposition(data, rank):
 
     Parameters:
         data (numpy.array): The four-dimensional tensor data to be decomposed.
+        rank (int): The required rank of tensor decomposition.
 
     Returns:
         factors (numpy.array): The decomposed factors array.
@@ -106,18 +110,24 @@ def tensor_decomposition(data, rank):
 
 def hierarchical_agglomerative_clustering(swim_bout_factor, n_clusters):
     """
-    Performs hierarchical clustering and visualizes the results using a
-    dendrogram and a heatmap. Also, compute Davies-Bouldin and Silhouette
-    scores for the clustering.
+    Performs hierarchical clustering and visualizes the results using a dendrogram and a heatmap. Also, compute
+    Davies-Bouldin and Silhouette scores for the clustering.
+
+    Parameters:
+        swim_bout_factor (numpy.array): The bout matrix to be clustered.
+    - n_clusters (int): The number of clusters to form.
+
+    Returns:
+    - labels (numpy.array): Cluster labels for each bout.
     """
 
     # 使用AgglomerativeClustering进行聚类
     clustering = AgglomerativeClustering(n_clusters=n_clusters, affinity='euclidean', linkage='ward')
-    labels = clustering.fit_predict(swim_bout_factor)
+    label = clustering.fit_predict(swim_bout_factor)
 
     # 打印一些评价指标
-    db_score = davies_bouldin_score(swim_bout_factor, labels)
-    s_score = silhouette_score(swim_bout_factor, labels)
+    db_score = davies_bouldin_score(swim_bout_factor, label)
+    s_score = silhouette_score(swim_bout_factor, label)
     print(f'Davies-Bouldin Score: {db_score}')
     print(f'Silhouette Score: {s_score}')
 
@@ -132,7 +142,7 @@ def hierarchical_agglomerative_clustering(swim_bout_factor, n_clusters):
 
     # 绘制dendrogram
     ax0 = fig.add_subplot(gs[0])
-    dendro = dendrogram(linked, orientation='left', no_labels=True, ax=ax0, truncate_mode='level', p=5)
+    dendrogram(linked, orientation='left', no_labels=True, ax=ax0, truncate_mode='level', p=5)
     ax0.set_axis_off()
 
     # 绘制热力图
@@ -153,7 +163,7 @@ if __name__ == '__main__':
 
     fishdata = np.load('/Users/lanxinxu/Desktop/INTERN_2023/PoseR/ZebTensor/bouts.npy')
     fishdata = np.squeeze(fishdata, axis=-1)  # 移除尺寸为1的维度，因为只有一条鱼，不需要这个维度
-    fishdata_1000 = fishdata[:2000]  # 原始数据太大了，取一部分bouts来看效果
+    fishdata_1000 = fishdata[:1000]  # 原始数据太大了，取一部分bouts来看效果
 
     # 计算每个节点相对于第14个节点的角度
     fishdata_angles = compute_relative_angles(fishdata_1000)
@@ -162,26 +172,24 @@ if __name__ == '__main__':
     fishdata = np.squeeze(fishdata_angles, axis=1)  # fishdata是一个 N * T * V 的数组
 
     # tensor decomposition
-    rank = 10  # 10 components
-    tensor_factors = tensor_decomposition(fishdata_1000, rank)
-    swim_bout_factor = tensor_factors[0]
+    n_rank = 10  # 10 components
+    tensor_factors = tensor_decomposition(fishdata_1000, n_rank)
+    swim_bout_matrix = tensor_factors[0]
 
     # hierarchical agglomerative clustering 聚类并画出树状图和热力图
-    n_clusters = 30  # 希望聚出多少类
-    labels = hierarchical_agglomerative_clustering(swim_bout_factor, n_clusters)  # 获得聚类标签并画图
+    num_clusters = 30  # 希望聚出多少类
+    labels = hierarchical_agglomerative_clustering(swim_bout_matrix, num_clusters)  # 获得聚类标签并画图
 
-    # UMAP 降维
+    # UMAP 降维到3维
     reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, metric='euclidean', n_components=3)
-    embedding = reducer.fit_transform(swim_bout_factor)
+    embedding = reducer.fit_transform(swim_bout_matrix)
 
-    # 可视化
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')  # 创建3D子图
+    # 可视化UMAP结果
+    figure = plt.figure()
+    ax = figure.add_subplot(111, projection='3d')  # 创建3D子图
 
     scatter = ax.scatter(embedding[:, 0], embedding[:, 1], embedding[:, 2], c=labels, cmap='Spectral')
     ax.set_title('3D UMAP projection of the N x TC matrix')
-    fig.colorbar(scatter)
+    figure.colorbar(scatter)
 
     plt.show()
-
-
