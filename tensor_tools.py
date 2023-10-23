@@ -115,10 +115,10 @@ def hierarchical_agglomerative_clustering(swim_bout_factor, n_clusters):
 
     Parameters:
         swim_bout_factor (numpy.array): The bout matrix to be clustered.
-    - n_clusters (int): The number of clusters to form.
+        n_clusters (int): The number of clusters to form.
 
     Returns:
-    - labels (numpy.array): Cluster labels for each bout.
+        labels (numpy.array): Cluster labels for each bout.
     """
 
     # 使用AgglomerativeClustering进行聚类
